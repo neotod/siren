@@ -6,10 +6,14 @@ import sys
 import os
 sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
 
-import dataio, meta_modules, utils, training, loss_functions, modules
+import dataio, utils, training, loss_functions
+from modules.models import INR
 
+import torch
 from torch.utils.data import DataLoader
 import configargparse
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 p = configargparse.ArgumentParser()
 p.add('-c', '--config_filepath', required=False, is_config_file=True, help='Path to config file.')
@@ -20,19 +24,25 @@ p.add_argument('--experiment_name', type=str, required=True,
 
 # General training options
 p.add_argument('--batch_size', type=int, default=1400)
+# p.add_argument('--batch_size', type=int, default=32*32*2)
 p.add_argument('--lr', type=float, default=1e-4, help='learning rate. default=5e-5')
 p.add_argument('--num_epochs', type=int, default=10000,
                help='Number of epochs to train for.')
+# p.add_argument('--num_epochs', type=int, default=2,
+#                help='Number of epochs to train for.')
 
 p.add_argument('--epochs_til_ckpt', type=int, default=1,
                help='Time interval in seconds until checkpoint is saved.')
 p.add_argument('--steps_til_summary', type=int, default=100,
                help='Time interval in seconds until tensorboard summary is saved.')
 
-p.add_argument('--model_type', type=str, default='sine',
+p.add_argument('--model_type', type=str, default='siren',
                help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
 p.add_argument('--point_cloud_path', type=str, default='/home/sitzmann/data/point_cloud.xyz',
                help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
+
+# p.add_argument('--point_cloud_path', type=str, default='/run/media/elliot/joint/compsci/projects/siren/data/thai_statue.xyz',
+#                help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
 
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
 opt = p.parse_args()
@@ -42,11 +52,22 @@ sdf_dataset = dataio.PointCloud(opt.point_cloud_path, on_surface_points=opt.batc
 dataloader = DataLoader(sdf_dataset, shuffle=True, batch_size=1, pin_memory=True, num_workers=0)
 
 # Define the model.
-if opt.model_type == 'nerf':
-    model = modules.SingleBVPNet(type='relu', mode='nerf', in_features=3)
-else:
-    model = modules.SingleBVPNet(type=opt.model_type, in_features=3)
-model.cuda()
+# if opt.model_type == 'nerf':
+#     model = modules.SingleBVPNet(type='relu', mode='nerf', in_features=3)
+# else:
+#     model = modules.SingleBVPNet(type=opt.model_type, in_features=3)
+# model.cuda()
+
+if opt.model_type == 'siren':
+    model = INR(opt.model_type).run(in_features=3,
+                                out_features=1,
+                                hidden_features=256,
+                                hidden_layers=3,
+                                first_omega_0=30.0,
+                                hidden_omega_0=30.0
+                            ).to(device)
+
+
 
 # Define the loss
 loss_fn = loss_functions.sdf

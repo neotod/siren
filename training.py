@@ -69,8 +69,13 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                         return train_loss
                     optim.step(closure)
 
-                model_output = model(model_input)
-                losses = loss_fn(model_output, gt)
+                inp = model_input['coords'].requires_grad_(True)
+                model_output = model(inp)
+                model_output_dict = {
+                    'model_in': inp,
+                    'model_out': model_output
+                }
+                losses = loss_fn(model_output_dict, gt)
 
                 train_loss = 0.
                 for loss_name, loss in losses.items():
@@ -89,7 +94,7 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                 if not total_steps % steps_til_summary:
                     torch.save(model.state_dict(),
                                os.path.join(checkpoints_dir, 'model_current.pth'))
-                    summary_fn(model, model_input, gt, model_output, writer, total_steps)
+                    summary_fn(model, model_input, gt, model_output_dict, writer, total_steps)
 
                 if not use_lbfgs:
                     optim.zero_grad()
